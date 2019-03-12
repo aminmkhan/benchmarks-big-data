@@ -11,8 +11,6 @@
     - [Eigen](#eigen)
     - [GCC](#gcc)
     - [Summary of Installation Notes](#summary-of-installation-notes)
-    - [Troubleshooting](#troubleshooting)
-        - [`function` in namespace `std` does not name a template type](#function-in-namespace-std-does-not-name-a-template-type)
 - [Installation of Husky on Abel Cluster](#installation-of-husky-on-abel-cluster)
     - [Dependencies and Modules](#dependencies-and-modules)
         - [GCC](#gcc-1)
@@ -21,9 +19,13 @@
             - [libzmq](#libzmq-1)
             - [cppzmq](#cppzmq-1)
     - [GPerfTools](#gperftools)
-    - [Summary of Installation Notes](#summary-of-installation-notes-1)
-    - [Troubleshooting](#troubleshooting-1)
-        - [C compiler cannot create executables](#c-compiler-cannot-create-executables)
+    - [Summary of Installation Notes for Abel](#summary-of-installation-notes-for-abel)
+- [Troubleshooting](#troubleshooting)
+    - [`function` in namespace `std` does not name a template type](#function-in-namespace-std-does-not-name-a-template-type)
+    - [`glog/logging.h` not found](#glogloggingh-not-found)
+    - [C compiler cannot create executables](#c-compiler-cannot-create-executables)
+    - [g++: fatal error: no input files](#g-fatal-error-no-input-files)
+    - [Undefined reference to `boost`](#undefined-reference-to-boost)
 
 <!-- /MarkdownTOC -->
 
@@ -184,6 +186,8 @@ export LD_LIBRARY_PATH:/home/amin/opt/gcc/lib:/home/amin/opt/gcc/lib64:$LD_LIBRA
 
 ### Summary of Installation Notes
 
+Here is a rundown on the commands I ran, your mileage may vary.
+
 ```bash
 cd ~/downloads
 wget https://github.com/husky-team/husky/archive/master.zip -O husky-source.zip
@@ -211,48 +215,6 @@ CC=~/opt/usr/local/bin/gcc CXX=~/opt/usr/local/bin/g++ make -j4 Master
 CC=~/opt/usr/local/bin/gcc CXX=~/opt/usr/local/bin/g++ make husky
 ```
 
-You might see the error that `glog/logging.h` was not found. Note that during build process, either due to `cmake -DCMAKE_PREFIX_PATH=~/opt/`, `$DEST_DIR`, or in general, Husky may build `glog` instead to `~/opt/home/amin/husky/release/`, so you need to manually copy back to the correct location in `release` folder.
-
-```bash
-cd $HUSKY_ROOT/release
-cp -Rv ~/opt/home/amin/husky/release/include .
-cp -Rv ~/opt/home/amin/husky/release/lib/* ./lib/
-```
-
-### Troubleshooting
-
-#### `function` in namespace `std` does not name a template type
-
-When building Husky with `make -j4 Master`, if you get the error like:
-
-```
-In file included from /home/amin/husky/base/generation_lock.cpp:15:
-/home/amin/husky/base/generation_lock.hpp:61:32: error: ‘function’ in namespace ‘std’ does not name a template type
-     void operator()(const std::function<void()>& exec);
-```
-
-Make sure you're using the latest version of `gcc`, and it is building against C++ 14 standard.
-
-```bash
-cmake -DCMAKE_BUILD_TYPE=Release \
-    -DBOOST_ROOT=~/opt/boost \
-    -DEIGEN_INCLUDE_DIR=~/opt/eigen \
-    -DCMAKE_C_COMPILER=~/opt/usr/local/bin/gcc \
-    -DCMAKE_CXX_COMPILER=~/opt/usr/local/bin/g++ \
-    .. >> install.log 2>&1 &
-```
-
-Edit the following files:
-
-- `husky/base/generation_lock.cpp`
-- `husky/base/generation_lock.hpp`
-
-And include the following line in the headers at the top.
-
-```cpp
-#include <functional>
-```
-
 ________________
 
 ## Installation of Husky on Abel Cluster
@@ -264,7 +226,7 @@ Following details are about [Abel cluster] at [University of Oslo, Norway]. Simi
 
 ### Dependencies and Modules
 
-Check for available modules.
+- Check for available modules.
 
 ```bash
 module avail cmake
@@ -287,14 +249,21 @@ module avail gperf
 module list
 ```
 
-We use following modules:
+- For compiling Husky, once all dependencies are available, you only need the following modules:
 
 ```bash
-module load boost/1.69.0 cmake/3.13.1
+module load boost/1.69.0 cmake/3.13.1 gcc/7.2.0
 ```
 
+- For building dependencies needed by Husky, you need some additional modules:
+
+```bash
+module load boost/1.69.0 cmake/3.13.1 gcc/7.2.0 Autoconf/2.69
+```
 
 #### GCC
+
+You can use the default `gcc` available on the cluster. The latest version is not necessary, but can be built as follows:
 
 ```bash
 cd ~/downloads
@@ -311,13 +280,14 @@ export DESTDIR="$HOME/.local/opt/" &&  make install
 
 #### Boost Libraries
 
-Husky project relies on Boost libraries that need to be separately built. Instead of manually installing Boost, try loading the module.
+You can use the default `boost` available on the cluster. The latest version is not necessary. Husky project relies on Boost libraries that need to be separately built. So instead of manually building Boost, first try loading the module on the cluster.
 
 When `cmake` reports the error `Could NOT find Boost`, you can give the following _hints_ to `cmake` (if you manually built Boost).
 
 ```bash
+cmake \
     -DBOOST_ROOT=$HOME/.local/opt/boost \
-    -DBOOST_LIBRARYDIR==$HOME/.local/opt/boost/lib \
+    -DBOOST_LIBRARYDIR=$HOME/.local/opt/boost/lib \
     -DBOOST_INCLUDEDIR=$HOME/.local/opt/boost/include \
 ```
 
@@ -356,9 +326,9 @@ Following folders will get created:
 cd ~/downloads
 wget https://github.com/zeromq/cppzmq/archive/master.zip -O cppzmq-source.zip
 unzip cppzmq-source.zip
-mv cppzmq-master/ cppzmq
+mv cppzmq-master/ ~/.local/opt/cppzmq-source
 
-cd cppzmq
+cd ~/.local/opt/cppzmq-source
 mkdir build
 cd build
 # Hint to CMake to find ZeroMQ here
@@ -367,20 +337,6 @@ export DESTDIR="$HOME/.local/opt/" &&  make -j4 install
 ```
 
 ### GPerfTools
-
-```bash
-cd ~/downloads
-wget https://github.com/gperftools/gperftools/archive/master.zip -O gperftools-source.zip
-# wget https://github.com/gperftools/gperftools/releases/download/gperftools-2.7/gperftools-2.7.tar.gz
-unzip gperftools-source.zip
-mv gperftools-master/ ~/.local/opt/gperftools
-cd ~/.local/opt/gperftools
-./autogen.sh
-./configure
-./configure --enable-frame-pointers
-make
-export DESTDIR="$HOME/.local/opt/" &&  make install
-```
 
 - [libunwind](http://www.nongnu.org/libunwind/)
 
@@ -393,17 +349,33 @@ cd ~/.local/opt/libunwind-1.3.1/
 ./configure
 make
 export DESTDIR="$HOME/.local/opt/" &&  make install
-## make install prefix=~/.local/opt (doesn't work)
 ```
 
-### Summary of Installation Notes
+```bash
+cd ~/downloads
+wget https://github.com/gperftools/gperftools/archive/master.zip -O gperftools-source.zip
+# wget https://github.com/gperftools/gperftools/releases/download/gperftools-2.7/gperftools-2.7.tar.gz
+unzip gperftools-source.zip
+mv gperftools-master/ ~/.local/opt/gperftools-source
+cd ~/.local/opt/gperftools-source
+./autogen.sh
+./configure
+./configure --enable-frame-pointers
+make
+export DESTDIR="$HOME/.local/opt/" &&  make install
+```
+
+### Summary of Installation Notes for Abel
+
+Here is a rundown on the commands I ran, your mileage may vary.
 
 ```bash
-module purge
-module load gcc/7.2.0
-module load cmake
-module load boost/1.69.0
-module load Autoconf/2.69
+module purge && \
+module load boost/1.69.0 cmake/3.13.1 gcc/7.2.0 Autoconf/2.69 && \
+module list
+# Currently Loaded Modulefiles:
+#  1) hpcx/2.2.0          3) gcc/7.2.0           5) icu/63.1            7) cmake/3.13.1        9) Autoconf/2.69
+#  2) binutils/2.26       4) openmpi.gnu/3.1.2   6) boost/1.69.0        8) M4/1.4.17
 
 cd ~/downloads
 wget https://github.com/husky-team/husky/archive/master.zip -O husky-source.zip
@@ -414,6 +386,7 @@ export HUSKY_ROOT=~/.local/opt/husky
 # Eigen
 cd ~/downloads
 wget http://bitbucket.org/eigen/eigen/get/3.3.7.tar.bz2
+mv 3.3.7.tar.bz2 eigen-3.3.7.tar.bz2
 tar jxvf 3.3.7.tar.bz2
 mv eigen-eigen-323c052e1731 ~/.local/opt/eigen
 
@@ -433,13 +406,37 @@ cd release
 cmake -DCMAKE_BUILD_TYPE=Release \
     -DEIGEN_INCLUDE_DIR=$HOME/.local/opt/eigen \
     -DCMAKE_PREFIX_PATH="$HOME/.local/opt/usr/local/" \
+    -DCMAKE_VERBOSE_MAKEFILE=ON \
     .. >> install.log 2>&1 &
 make help
-make -j4 Master
-make husky
+
+# fix the problem with gcc flags (see below)
+find . -iname 'flags.make' -type f \
+    -exec \
+    sed  -i 's/-fomit-frame-pointer;-Wno-deprecated-declarations/-fomit-frame-pointer\ -Wno-deprecated-declarations/g' \
+    {} +
+sed  -i  \
+    's/-fomit-frame-pointer;-Wno-deprecated-declarations/-fomit-frame-pointer\ -Wno-deprecated-declarations/g' \
+    ./master/CMakeFiles/Master.dir/link.txt
+
+# fix <functional>
+nano $HUSKY_ROOT/base/generation_lock.cpp
+nano $HUSKY_ROOT/base/generation_lock.hpp
+
+# Attempt 1
+make VERBOSE=1 -j4 Master >> install_1.log 2>&1 &
+
+# fix `glog/logging.h` not found
+mv -v ~/.local/opt/usit/abel/u1/akhan/.local/opt/husky/release/include $HUSKY_ROOT/release/.
+mv -v ~/.local/opt/usit/abel/u1/akhan/.local/opt/husky/release/lib/* $HUSKY_ROOT/release/lib/.
+
+# Attempt 2
+make VERBOSE=1 -j4 Master >> install_2.log 2>&1 &
+
+make -j4 husky >> install_husky.log 2>&1 &
 ```
 
-Or, with more details to `cmake`:
+Or, with more details to `cmake`, and using not the default version of `gcc`:
 
 ```bash
 export CC=$HOME/.local/opt/usr/local/bin/gcc
@@ -448,15 +445,145 @@ cmake -DCMAKE_BUILD_TYPE=Release \
     -D CMAKE_C_COMPILER=$HOME/.local/opt/usr/local/bin/gcc \
     -D CMAKE_CXX_COMPILER=$HOME/.local/opt/usr/local/bin/g++ \
     -DEIGEN_INCLUDE_DIR=$HOME/.local/opt/eigen \
+    -DCMAKE_VERBOSE_MAKEFILE=ON \
     -DCMAKE_PREFIX_PATH="$HOME/.local/opt/usr/local/" \
-    ..
+    .. >> install.log 2>&1 &
 
 CC=$HOME/.local/opt/usr/local/bin/gcc CXX=$HOME/.local/opt/usr/local/bin/g++ make -j4 Master
 CC=$HOME/.local/opt/usr/local/bin/gcc CXX=$HOME/.local/opt/usr/local/bin/g++ make -j4 husky
 ```
 
-### Troubleshooting
+## Troubleshooting
 
-#### C compiler cannot create executables
+### `function` in namespace `std` does not name a template type
+
+When building Husky with `make -j4 Master`, if you get the error like:
+
+```
+In file included from /home/amin/husky/base/generation_lock.cpp:15:
+/home/amin/husky/base/generation_lock.hpp:61:32: error: ‘function’ in namespace ‘std’ does not name a template type
+     void operator()(const std::function<void()>& exec);
+```
+
+Make sure you're using the latest version of `gcc`, and it is building against C++ 14 standard.
+
+```bash
+cmake -DCMAKE_BUILD_TYPE=Release \
+    -DBOOST_ROOT=~/opt/boost \
+    -DEIGEN_INCLUDE_DIR=~/opt/eigen \
+    -DCMAKE_C_COMPILER=~/opt/usr/local/bin/gcc \
+    -DCMAKE_CXX_COMPILER=~/opt/usr/local/bin/g++ \
+    .. >> install.log 2>&1 &
+```
+
+You will have to edit the following files:
+
+- `$HUSKY_ROOT/base/generation_lock.cpp`
+- `$HUSKY_ROOT/base/generation_lock.hpp`
+
+And include the following line in the headers at the top.
+
+```cpp
+#include <functional>
+```
+
+### `glog/logging.h` not found
+
+You might see the error that `glog/logging.h` was not found. 
+
+Note that during build process, either due to `cmake -DCMAKE_PREFIX_PATH=~/opt/`, `$DEST_DIR`, or in general, Husky may build `glog` instead to `~/opt/home/amin/husky/release/`, so you need to manually copy back to the correct location in `release` folder.
+
+- The commands I ran on my Linux box:
+
+```bash
+cd $HUSKY_ROOT/release
+cp -Rv ~/opt/home/amin/husky/release/include .
+cp -Rv ~/opt/home/amin/husky/release/lib/* ./lib/
+```
+
+- And, similar commands I ran on HPC cluster:
+
+```bash
+mv -v ~/.local/opt/usit/abel/u1/akhan/.local/opt/husky/release/include $HUSKY_ROOT/release/.
+mv -v ~/.local/opt/usit/abel/u1/akhan/.local/opt/husky/release/lib/* $HUSKY_ROOT/release/lib/.
+```
+
+### C compiler cannot create executables
 
 Make sure you have only just one and the latest `gcc` loaded and in path. Make sure `CC` and `CXX` flags are not pointing to OpenMPI.
+
+### g++: fatal error: no input files
+
+This problem only occurred on the HPC cluster. You will notice errors in log like when running `make -j4 Master`:
+
+```bash
+Scanning dependencies of target husky-master-objs
+Scanning dependencies of target base-objs
+[ 15%] Building CXX object base/CMakeFiles/base-objs.dir/assert.cpp.o
+[ 15%] Building CXX object master/CMakeFiles/husky-master-objs.dir/master.cpp.o
+g++: fatal error: no input files
+compilation terminated.
+g++: fatal error: no input files
+compilation terminated.
+/bin/sh: -Wno-deprecated-declarations: command not found
+```
+
+Turn on verbose output for `cmake` and `make`:
+
+```bash
+cmake -DCMAKE_VERBOSE_MAKEFILE=ON ...
+make VERBOSE=1 -j4 Master
+```
+
+You will see the command that is failing as follows:
+
+```bash
+g++   -I/usit/abel/u1/akhan/.local/opt/husky -I/cluster/software/VERSIONS/boost/1.69.0/include -I/usit/abel/u1/akhan/.local/opt/usr/local/include -I/usit/abel/u1/akhan/.local/opt/husky/release/include -I/usit/abel/u1/akhan/.local/opt/eigen/eigen3  -O2 -mavx -march=sandybridge -funroll-loops -fomit-frame-pointer;-Wno-deprecated-declarations -O3 -w   -std=gnu++14 -o CMakeFiles/husky-master-objs.dir/master.cpp.o -c /usit/abel/u1/akhan/.local/opt/husky/master/master.cpp
+```
+
+The problematic part is: `-fomit-frame-pointer;-Wno-deprecated-declarations`
+
+- For some reason, when cmake is generating CXX flags, it is mistakenly putting an extra semi-colon here: `-fomit-frame-pointer;-Wno-deprecated-declarations`
+- Either fix this in original `cmake` files, or fix the setting in the `Makefile` configuration. You will have to fix multiple `flags.make` files.
+    + Replace: `-fomit-frame-pointer;-Wno-deprecated-declarations`
+    + With: ``-fomit-frame-pointer -Wno-deprecated-declarations``
+
+```bash
+cd $HUSKY_ROOT
+grep -rnw . -e 'fomit-frame-pointer'
+find $HUSKY_ROOT/release -iname 'flags.make' -type f 
+
+sed  -i  \
+    's/-fomit-frame-pointer;-Wno-deprecated-declarations/-fomit-frame-pointer\ -Wno-deprecated-declarations/g' \
+    $HUSKY_ROOT/release/master/CMakeFiles/Master.dir/flags.make
+
+
+find $HUSKY_ROOT/release -iname 'flags.make' -type f -print0 \
+    -exec \
+    sed  -i 's/-fomit-frame-pointer;-Wno-deprecated-declarations/-fomit-frame-pointer\ -Wno-deprecated-declarations/g' \
+    {} + 
+
+sed  -i  \
+    's/-fomit-frame-pointer;-Wno-deprecated-declarations/-fomit-frame-pointer\ -Wno-deprecated-declarations/g' \
+    $HUSKY_ROOT/release/master/CMakeFiles/Master.dir/link.txt
+
+```
+
+- For context, one reason could be `cmake` on Abel is in latest version but the `cmake` file in Husky is based on old version.
+    + When compiled on CentOS on another machine with `cmake version 3.6.2`, this problem was not encountered.
+    + On Abel with with `cmake version 3.13.1`, above problem was noticed
+    + On Abel with with `cmake version 3.7.1`, above problem was noticed
+
+### Undefined reference to `boost`
+
+This problem only occurred on the HPC cluster. 
+
+- Multiple errors related to Boost:
+    + `/cluster/software/VERSIONS/binutils/2.26/bin/ld: warning: libboost_system.so.1.69.0, needed by /cluster/software/VERSIONS/boost/1.69.0/lib/libboost_thread.so, may conflict with libboost_system.so.5`
+    + `husky/master/master_main.cpp`: 
+    + `nfs_binary_assigner.cpp.o: In function husky::NFSFileAssigner::prepare(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)':`
+
+```bash
+CMakeFiles/husky-master-objs.dir/nfs_binary_assigner.cpp.o: In function `husky::NFSFileAssigner::prepare(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)':
+nfs_binary_assigner.cpp:(.text+0x961): undefined reference to `boost::filesystem::detail::status(boost::filesystem::path const&, boost::system::error_code*)'
+```
