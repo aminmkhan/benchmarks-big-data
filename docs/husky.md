@@ -7,25 +7,26 @@
         - [ZeroMQ](#zeromq)
             - [libzmq](#libzmq)
             - [cppzmq](#cppzmq)
-    - [Boost Libraries](#boost-libraries)
-    - [Eigen](#eigen)
-    - [GCC](#gcc)
+        - [Boost Libraries](#boost-libraries)
+        - [Eigen](#eigen)
+        - [GCC](#gcc)
     - [Summary of Installation Notes](#summary-of-installation-notes)
 - [Installation of Husky on Abel Cluster](#installation-of-husky-on-abel-cluster)
     - [Dependencies and Modules](#dependencies-and-modules)
         - [GCC](#gcc-1)
         - [Boost Libraries](#boost-libraries-1)
+        - [Eigen](#eigen-1)
         - [ZeroMQ](#zeromq-1)
             - [libzmq](#libzmq-1)
             - [cppzmq](#cppzmq-1)
-    - [GPerfTools](#gperftools)
+        - [GPerfTools](#gperftools)
     - [Summary of Installation Notes for Abel](#summary-of-installation-notes-for-abel)
 - [Troubleshooting](#troubleshooting)
     - [`function` in namespace `std` does not name a template type](#function-in-namespace-std-does-not-name-a-template-type)
     - [`glog/logging.h` not found](#glogloggingh-not-found)
     - [C compiler cannot create executables](#c-compiler-cannot-create-executables)
     - [g++: fatal error: no input files](#g-fatal-error-no-input-files)
-    - [Undefined reference to `boost`](#undefined-reference-to-boost)
+    - [Errors linking Boost: Undefined reference to `boost::filesystem`](#errors-linking-boost-undefined-reference-to-boostfilesystem)
 
 <!-- /MarkdownTOC -->
 
@@ -92,7 +93,7 @@ export DESTDIR="~/opt/" &&  make -j4 install
 [libzmq]: https://github.com/zeromq/libzmq
 [cppzmq]: https://github.com/zeromq/cppzmq
 
-### Boost Libraries
+#### Boost Libraries
 
 Install [Boost]. The version for your distribution may be older than the latest Boost version.
 
@@ -105,7 +106,7 @@ sudo yum install boost boost-thread boost-devel
 Or you can try manually installing Boost. However, Husky project relies on Boost libraries that need to be separately built. See [installation instructions](https://www.boost.org/doc/libs/1_69_0/more/getting_started/unix-variants.html#easy-build-and-install).
 
 ```bash
-wget https://sourceforge.net/projects/boost/files/boost/1.61.0/boost_1_61_0.tar.gz
+wget https://dl.bintray.com/boostorg/release/1.69.0/source/boost_1_69_0.tar.gz
 
 tar xzvf boost_1_69_0.tar.gz
 cd boost_1_69_0
@@ -129,7 +130,7 @@ cmake -DCMAKE_BUILD_TYPE=Release -DBOOST_ROOT=~/opt/boost ..
 
 [Boost]: https://www.boost.org/doc/libs/1_62_0/more/getting_started/unix-variants.html
 
-### Eigen
+#### Eigen
 
 Download and extract [Eigen] library.
 
@@ -150,7 +151,7 @@ cmake -DCMAKE_BUILD_TYPE=Release -DBOOST_ROOT=~/opt/boost_1_61_0 -DEIGEN_INCLUDE
 
 [Eigen]: http://eigen.tuxfamily.org/dox/GettingStarted.html
 
-### GCC
+#### GCC
 
 Download [GCC].
 
@@ -215,6 +216,12 @@ CC=~/opt/usr/local/bin/gcc CXX=~/opt/usr/local/bin/g++ make -j4 Master
 CC=~/opt/usr/local/bin/gcc CXX=~/opt/usr/local/bin/g++ make husky
 ```
 
+And here is the system environment:
+
+- Boost version: 1.69.0
+- gcc (GCC) 7.3.0
+- cmake version 3.6.2
+
 ________________
 
 ## Installation of Husky on Abel Cluster
@@ -263,7 +270,9 @@ module load boost/1.69.0 cmake/3.13.1 gcc/7.2.0 Autoconf/2.69
 
 #### GCC
 
-You can use the default `gcc` available on the cluster. The latest version is not necessary, but can be built as follows:
+It is preferable to use the default latest `gcc` available on the cluster. 
+
+The latest version is not necessary, but can be built as follows:
 
 ```bash
 cd ~/downloads
@@ -280,7 +289,31 @@ export DESTDIR="$HOME/.local/opt/" &&  make install
 
 #### Boost Libraries
 
-You can use the default `boost` available on the cluster. The latest version is not necessary. Husky project relies on Boost libraries that need to be separately built. So instead of manually building Boost, first try loading the module on the cluster.
+It is preferable to build the latest `boost` version from the source, using the system default `gcc`. There may be issues in using the `boost` already installed on the cluster.
+
+```bash
+wget https://dl.bintray.com/boostorg/release/1.69.0/source/boost_1_69_0.tar.gz
+
+tar xzvf boost_1_69_0.tar.gz
+cd boost_1_69_0
+mv boost_1_69_0 ~/.local/opt/
+cd ~/.local/opt/boost_1_69_0
+mkdir -p ~/.local/opt/boost
+
+./bootstrap.sh --help
+./bootstrap.sh --prefix=/usit/abel/u1/akhan/.local/opt/boost
+
+# following will take long time!
+./b2 install -j 4 >> install.log 2>&1 &
+
+# In case, boost gets wrongly nested in current folder tree
+if [ ! -d '/usit/abel/u1/akhan/.local/opt/boost' ]; then
+    mv -v ~/.local/opt/boost_1_69_0/usit/abel/u1/akhan/.local/opt/boost \
+    /usit/abel/u1/akhan/.local/opt/.
+fi
+
+export BOOST_ROOT=/usit/abel/u1/akhan/.local/opt/boost
+```
 
 When `cmake` reports the error `Could NOT find Boost`, you can give the following _hints_ to `cmake` (if you manually built Boost).
 
@@ -289,6 +322,18 @@ cmake \
     -DBOOST_ROOT=$HOME/.local/opt/boost \
     -DBOOST_LIBRARYDIR=$HOME/.local/opt/boost/lib \
     -DBOOST_INCLUDEDIR=$HOME/.local/opt/boost/include \
+```
+
+#### Eigen
+
+Download and extract [Eigen] library.
+
+```bash
+cd ~/downloads
+wget http://bitbucket.org/eigen/eigen/get/3.3.7.tar.bz2
+mv 3.3.7.tar.bz2 eigen-3.3.7.tar.bz2
+tar jxvf 3.3.7.tar.bz2
+mv eigen-eigen-323c052e1731 ~/.local/opt/eigen
 ```
 
 #### ZeroMQ
@@ -336,7 +381,7 @@ cmake -DCMAKE_PREFIX_PATH="$HOME/.local/opt/usr/local/" -DCPPZMQ_BUILD_TESTS=OFF
 export DESTDIR="$HOME/.local/opt/" &&  make -j4 install
 ```
 
-### GPerfTools
+#### GPerfTools
 
 - [libunwind](http://www.nongnu.org/libunwind/)
 
@@ -371,27 +416,22 @@ Here is a rundown on the commands I ran, your mileage may vary.
 
 ```bash
 module purge && \
-module load boost/1.69.0 cmake/3.13.1 gcc/7.2.0 Autoconf/2.69 && \
+module load cmake/3.13.1 gcc/7.2.0 Autoconf/2.69 && \
 module list
 # Currently Loaded Modulefiles:
-#  1) hpcx/2.2.0          3) gcc/7.2.0           5) icu/63.1            7) cmake/3.13.1        9) Autoconf/2.69
-#  2) binutils/2.26       4) openmpi.gnu/3.1.2   6) boost/1.69.0        8) M4/1.4.17
+#   1) binutils/2.26   2) gcc/7.2.0       3) cmake/3.13.1    4) M4/1.4.17       5) Autoconf/2.69
 
 cd ~/downloads
 wget https://github.com/husky-team/husky/archive/master.zip -O husky-source.zip
 unzip husky-source.zip
-mv -v husky-master ~/.local/opt/husky
-export HUSKY_ROOT=~/.local/opt/husky
+mv -v husky-master $HOME/.local/opt/husky
+export HUSKY_ROOT=$HOME/.local/opt/husky
 
 # Eigen
-cd ~/downloads
-wget http://bitbucket.org/eigen/eigen/get/3.3.7.tar.bz2
-mv 3.3.7.tar.bz2 eigen-3.3.7.tar.bz2
-tar jxvf 3.3.7.tar.bz2
-mv eigen-eigen-323c052e1731 ~/.local/opt/eigen
+## See above
 
 # Boost
-module load boost/1.69.0
+## See above
 
 ## ZeroMQ
 ## See above
@@ -404,10 +444,12 @@ cd $HUSKY_ROOT
 mkdir release
 cd release
 cmake -DCMAKE_BUILD_TYPE=Release \
+    -DBOOST_ROOT=$HOME/.local/opt/boost \
     -DEIGEN_INCLUDE_DIR=$HOME/.local/opt/eigen \
-    -DCMAKE_PREFIX_PATH="$HOME/.local/opt/usr/local/" \
+    -DCMAKE_PREFIX_PATH=$HOME/.local/opt/usr/local/ \
     -DCMAKE_VERBOSE_MAKEFILE=ON \
     .. >> install.log 2>&1 &
+
 make help
 
 # fix the problem with gcc flags (see below)
@@ -419,24 +461,20 @@ sed  -i  \
     's/-fomit-frame-pointer;-Wno-deprecated-declarations/-fomit-frame-pointer\ -Wno-deprecated-declarations/g' \
     ./master/CMakeFiles/Master.dir/link.txt
 
-# fix <functional>
-nano $HUSKY_ROOT/base/generation_lock.cpp
-nano $HUSKY_ROOT/base/generation_lock.hpp
+# Edit following files (if needed): #include <functional>
+# nano $HUSKY_ROOT/base/generation_lock.cpp
+# nano $HUSKY_ROOT/base/generation_lock.hpp
 
-# Attempt 1
 make VERBOSE=1 -j4 Master >> install_1.log 2>&1 &
 
-# fix `glog/logging.h` not found
+# fix `glog/logging.h` not found (only if above reports errors)
 mv -v ~/.local/opt/usit/abel/u1/akhan/.local/opt/husky/release/include $HUSKY_ROOT/release/.
 mv -v ~/.local/opt/usit/abel/u1/akhan/.local/opt/husky/release/lib/* $HUSKY_ROOT/release/lib/.
-
-# Attempt 2
-make VERBOSE=1 -j4 Master >> install_2.log 2>&1 &
 
 make -j4 husky >> install_husky.log 2>&1 &
 ```
 
-Or, with more details to `cmake`, and using not the default version of `gcc`:
+Or, with more details to `cmake`, when not using the default version of `gcc`:
 
 ```bash
 export CC=$HOME/.local/opt/usr/local/bin/gcc
@@ -445,13 +483,20 @@ cmake -DCMAKE_BUILD_TYPE=Release \
     -D CMAKE_C_COMPILER=$HOME/.local/opt/usr/local/bin/gcc \
     -D CMAKE_CXX_COMPILER=$HOME/.local/opt/usr/local/bin/g++ \
     -DEIGEN_INCLUDE_DIR=$HOME/.local/opt/eigen \
+    -DBOOST_ROOT=$HOME/.local/opt/boost \
     -DCMAKE_VERBOSE_MAKEFILE=ON \
-    -DCMAKE_PREFIX_PATH="$HOME/.local/opt/usr/local/" \
+    -DCMAKE_PREFIX_PATH=$HOME/.local/opt/usr/local/ \
     .. >> install.log 2>&1 &
 
 CC=$HOME/.local/opt/usr/local/bin/gcc CXX=$HOME/.local/opt/usr/local/bin/g++ make -j4 Master
 CC=$HOME/.local/opt/usr/local/bin/gcc CXX=$HOME/.local/opt/usr/local/bin/g++ make -j4 husky
 ```
+
+And here is the system environment:
+
+- Boost version: 1.69.0
+- gcc (GCC) 7.2.0
+- cmake version 3.13.1
 
 ## Troubleshooting
 
@@ -492,6 +537,13 @@ And include the following line in the headers at the top.
 You might see the error that `glog/logging.h` was not found. 
 
 Note that during build process, either due to `cmake -DCMAKE_PREFIX_PATH=~/opt/`, `$DEST_DIR`, or in general, Husky may build `glog` instead to `~/opt/home/amin/husky/release/`, so you need to manually copy back to the correct location in `release` folder.
+
+- Try not using quotes when specifying prefix path:
+
+```bash
+cmake \
+    -DCMAKE_PREFIX_PATH=$HOME/.local/opt/usr/local/
+```
 
 - The commands I ran on my Linux box:
 
@@ -543,7 +595,7 @@ g++   -I/usit/abel/u1/akhan/.local/opt/husky -I/cluster/software/VERSIONS/boost/
 
 The problematic part is: `-fomit-frame-pointer;-Wno-deprecated-declarations`
 
-- For some reason, when cmake is generating CXX flags, it is mistakenly putting an extra semi-colon here: `-fomit-frame-pointer;-Wno-deprecated-declarations`
+- On the cluster when cmake is generating CXX flags, it is mistakenly putting an extra semi-colon here: `-fomit-frame-pointer;-Wno-deprecated-declarations`
 - Either fix this in original `cmake` files, or fix the setting in the `Makefile` configuration. You will have to fix multiple `flags.make` files.
     + Replace: `-fomit-frame-pointer;-Wno-deprecated-declarations`
     + With: ``-fomit-frame-pointer -Wno-deprecated-declarations``
@@ -566,24 +618,16 @@ find $HUSKY_ROOT/release -iname 'flags.make' -type f -print0 \
 sed  -i  \
     's/-fomit-frame-pointer;-Wno-deprecated-declarations/-fomit-frame-pointer\ -Wno-deprecated-declarations/g' \
     $HUSKY_ROOT/release/master/CMakeFiles/Master.dir/link.txt
-
 ```
 
-- For context, one reason could be `cmake` on Abel is in latest version but the `cmake` file in Husky is based on old version.
-    + When compiled on CentOS on another machine with `cmake version 3.6.2`, this problem was not encountered.
-    + On Abel with with `cmake version 3.13.1`, above problem was noticed
-    + On Abel with with `cmake version 3.7.1`, above problem was noticed
+- You will have to search the whole folder `$HUSKY_ROOT/release`, and fix any other such occurrences when compiling examples.
 
-### Undefined reference to `boost`
+### Errors linking Boost: Undefined reference to `boost::filesystem`
 
-This problem only occurred on the HPC cluster. 
+This problem only occurred on the HPC cluster, in linking to `boost modules`.
 
-- Multiple errors related to Boost:
-    + `/cluster/software/VERSIONS/binutils/2.26/bin/ld: warning: libboost_system.so.1.69.0, needed by /cluster/software/VERSIONS/boost/1.69.0/lib/libboost_thread.so, may conflict with libboost_system.so.5`
-    + `husky/master/master_main.cpp`: 
-    + `nfs_binary_assigner.cpp.o: In function husky::NFSFileAssigner::prepare(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)':`
+- `binutils/2.26/bin/ld`: warning: `libboost_system.so.1.69.0`, needed by `boost/1.69.0/lib/libboost_thread.so`, may conflict with `libboost_system.so.5`
+- Undefined reference to `boost::filesystem::detail::status` etc.
 
-```bash
-CMakeFiles/husky-master-objs.dir/nfs_binary_assigner.cpp.o: In function `husky::NFSFileAssigner::prepare(std::__cxx11::basic_string<char, std::char_traits<char>, std::allocator<char> > const&)':
-nfs_binary_assigner.cpp:(.text+0x961): undefined reference to `boost::filesystem::detail::status(boost::filesystem::path const&, boost::system::error_code*)'
-```
+The workaround was not to use the `boost` pre-installed on the cluster, and build the latest `boost` along with all its modules from source, using the system default `gcc` on the cluster.
+
