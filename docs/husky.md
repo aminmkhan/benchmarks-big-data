@@ -1,12 +1,10 @@
 # Husky
 
-<!-- MarkdownTOC levels="2,3,4,5" autoanchor=false autolink=true -->
+<!-- MarkdownTOC levels="2,3,4" autoanchor=false autolink=true -->
 
 - [Installation of Husky](#installation-of-husky)
     - [Install dependencies](#install-dependencies)
         - [ZeroMQ](#zeromq)
-            - [libzmq](#libzmq)
-            - [cppzmq](#cppzmq)
         - [Boost Libraries](#boost-libraries)
         - [Eigen](#eigen)
         - [GCC](#gcc)
@@ -17,19 +15,16 @@
         - [Boost Libraries](#boost-libraries-1)
         - [Eigen](#eigen-1)
         - [ZeroMQ](#zeromq-1)
-            - [libzmq](#libzmq-1)
-            - [cppzmq](#cppzmq-1)
         - [GPerfTools](#gperftools)
     - [Summary of Installation Notes for Abel](#summary-of-installation-notes-for-abel)
 - [Troubleshooting](#troubleshooting)
     - [`function` in namespace `std` does not name a template type](#function-in-namespace-std-does-not-name-a-template-type)
     - [`glog/logging.h` not found](#glogloggingh-not-found)
     - [C compiler cannot create executables](#c-compiler-cannot-create-executables)
-    - [g++: fatal error: no input files](#g-fatal-error-no-input-files)
+    - [CMake issue: `g++ fatal error: no input files`](#cmake-issue-g-fatal-error-no-input-files)
     - [Errors linking Boost: Undefined reference to `boost::filesystem`](#errors-linking-boost-undefined-reference-to-boostfilesystem)
 
 <!-- /MarkdownTOC -->
-
 
 ## Installation of Husky
 
@@ -218,9 +213,10 @@ CC=~/opt/usr/local/bin/gcc CXX=~/opt/usr/local/bin/g++ make husky
 
 And here is the system environment:
 
+- CentOS Linux release: 7.6.1810
 - Boost version: 1.69.0
-- gcc (GCC) 7.3.0
-- cmake version 3.6.2
+- gcc version: 7.3.0
+- cmake version: 3.6.2
 
 ________________
 
@@ -240,7 +236,6 @@ module avail cmake
 module load cmake
 
 module avail zeromq
-module load zeromq
 
 module avail boost
 module load boost/1.69.0
@@ -270,9 +265,9 @@ module load boost/1.69.0 cmake/3.13.1 gcc/7.2.0 Autoconf/2.69
 
 #### GCC
 
-It is preferable to use the default latest `gcc` available on the cluster. 
+It is preferable to use the latest `gcc` module available on the cluster. 
 
-The latest version is not necessary, but can be built as follows:
+If you want to use the most recent `gcc` version, it is not necessary but you can build as follows:
 
 ```bash
 cd ~/downloads
@@ -289,7 +284,24 @@ export DESTDIR="$HOME/.local/opt/" &&  make install
 
 #### Boost Libraries
 
-It is preferable to build the latest `boost` version from the source, using the system default `gcc`. There may be issues in using the `boost` already installed on the cluster.
+It is preferable to use the latest `boost` module available on the cluster. If you use the default `boost` available, check its directories.
+
+```bash
+module load boost/1.69.0
+set | grep BOOST
+BOOST_INCLUDEDIR=/cluster/software/VERSIONS/boost/1.69.0/include
+BOOST_LIBRARYDIR=/cluster/software/VERSIONS/boost/1.69.0/lib
+BOOST_ROOT=/cluster/software/VERSIONS/boost/1.69.0
+```
+
+So you can specify the path to `boost` to `cmake`:
+
+```bash
+cmake \
+    -DBOOST_ROOT=/cluster/software/VERSIONS/boost/1.69.0 \
+```
+
+You can also build the latest `boost` version from the source, using the system default `gcc`. You can try this if you encounter issues with the `boost` already installed on the cluster.
 
 ```bash
 wget https://dl.bintray.com/boostorg/release/1.69.0/source/boost_1_69_0.tar.gz
@@ -439,6 +451,10 @@ export HUSKY_ROOT=$HOME/.local/opt/husky
 ## GPerfTools
 ## See above
 
+## CMake
+## Edit if needed `$HUSKY_ROOT/CMakeLists.txt` (aee below)
+##     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-deprecated-declarations")
+
 # Husky
 cd $HUSKY_ROOT
 mkdir release
@@ -452,24 +468,7 @@ cmake -DCMAKE_BUILD_TYPE=Release \
 
 make help
 
-# fix the problem with gcc flags (see below)
-find . -iname 'flags.make' -type f \
-    -exec \
-    sed  -i 's/-fomit-frame-pointer;-Wno-deprecated-declarations/-fomit-frame-pointer\ -Wno-deprecated-declarations/g' \
-    {} +
-sed  -i  \
-    's/-fomit-frame-pointer;-Wno-deprecated-declarations/-fomit-frame-pointer\ -Wno-deprecated-declarations/g' \
-    ./master/CMakeFiles/Master.dir/link.txt
-
-# Edit following files (if needed): #include <functional>
-# nano $HUSKY_ROOT/base/generation_lock.cpp
-# nano $HUSKY_ROOT/base/generation_lock.hpp
-
-make VERBOSE=1 -j4 Master >> install_1.log 2>&1 &
-
-# fix `glog/logging.h` not found (only if above reports errors)
-mv -v ~/.local/opt/usit/abel/u1/akhan/.local/opt/husky/release/include $HUSKY_ROOT/release/.
-mv -v ~/.local/opt/usit/abel/u1/akhan/.local/opt/husky/release/lib/* $HUSKY_ROOT/release/lib/.
+make VERBOSE=1 -j4 Master >> install.log 2>&1 &
 
 make -j4 husky >> install_husky.log 2>&1 &
 ```
@@ -494,11 +493,16 @@ CC=$HOME/.local/opt/usr/local/bin/gcc CXX=$HOME/.local/opt/usr/local/bin/g++ mak
 
 And here is the system environment:
 
+- CentOS Linux release: 6.9
 - Boost version: 1.69.0
-- gcc (GCC) 7.2.0
-- cmake version 3.13.1
+- gcc version: 7.2.0
+- cmake version: 3.13.1
 
 ## Troubleshooting
+
+Some of these issues have already been fixed through [pull request #304].
+
+[pull request #304]: https://github.com/husky-team/husky/pull/304
 
 ### `function` in namespace `std` does not name a template type
 
@@ -510,61 +514,28 @@ In file included from /home/amin/husky/base/generation_lock.cpp:15:
      void operator()(const std::function<void()>& exec);
 ```
 
-Make sure you're using the latest version of `gcc`, and it is building against C++ 14 standard.
-
-```bash
-cmake -DCMAKE_BUILD_TYPE=Release \
-    -DBOOST_ROOT=~/opt/boost \
-    -DEIGEN_INCLUDE_DIR=~/opt/eigen \
-    -DCMAKE_C_COMPILER=~/opt/usr/local/bin/gcc \
-    -DCMAKE_CXX_COMPILER=~/opt/usr/local/bin/g++ \
-    .. >> install.log 2>&1 &
-```
-
-You will have to edit the following files:
-
-- `$HUSKY_ROOT/base/generation_lock.cpp`
-- `$HUSKY_ROOT/base/generation_lock.hpp`
-
-And include the following line in the headers at the top.
-
-```cpp
-#include <functional>
-```
+Fixed as part of [pull request #304].
 
 ### `glog/logging.h` not found
 
 You might see the error that `glog/logging.h` was not found. 
 
-Note that during build process, either due to `cmake -DCMAKE_PREFIX_PATH=~/opt/`, `$DEST_DIR`, or in general, Husky may build `glog` instead to `~/opt/home/amin/husky/release/`, so you need to manually copy back to the correct location in `release` folder.
+Note that during build process, sometimes Husky may build `glog` into a nested folder. So you need to manually copy back to the correct location in `release` folder.
 
-- Try not using quotes when specifying prefix path:
+Do not use quotes when specifying prefix path to `cmake`.
 
 ```bash
 cmake \
     -DCMAKE_PREFIX_PATH=$HOME/.local/opt/usr/local/
 ```
 
-- The commands I ran on my Linux box:
-
-```bash
-cd $HUSKY_ROOT/release
-cp -Rv ~/opt/home/amin/husky/release/include .
-cp -Rv ~/opt/home/amin/husky/release/lib/* ./lib/
-```
-
-- And, similar commands I ran on HPC cluster:
-
-```bash
-mv -v ~/.local/opt/usit/abel/u1/akhan/.local/opt/husky/release/include $HUSKY_ROOT/release/.
-mv -v ~/.local/opt/usit/abel/u1/akhan/.local/opt/husky/release/lib/* $HUSKY_ROOT/release/lib/.
-```
-
 ### C compiler cannot create executables
 
 Make sure you have only just one and the latest `gcc` loaded and in path. Make sure `CC` and `CXX` flags are not pointing to OpenMPI.
 
-### g++: fatal error: no input files
+### CMake issue: `g++ fatal error: no input files`
+
+Fixed as part of [pull request #304].
 
 This problem only occurred on the HPC cluster. You will notice errors in log like when running `make -j4 Master`:
 
@@ -580,6 +551,8 @@ compilation terminated.
 /bin/sh: -Wno-deprecated-declarations: command not found
 ```
 
+This is caused by `cmake` incorrectly inserting semi-colons in `make` command. 
+
 Turn on verbose output for `cmake` and `make`:
 
 ```bash
@@ -587,47 +560,19 @@ cmake -DCMAKE_VERBOSE_MAKEFILE=ON ...
 make VERBOSE=1 -j4 Master
 ```
 
-You will see the command that is failing as follows:
-
-```bash
-g++   -I/usit/abel/u1/akhan/.local/opt/husky -I/cluster/software/VERSIONS/boost/1.69.0/include -I/usit/abel/u1/akhan/.local/opt/usr/local/include -I/usit/abel/u1/akhan/.local/opt/husky/release/include -I/usit/abel/u1/akhan/.local/opt/eigen/eigen3  -O2 -mavx -march=sandybridge -funroll-loops -fomit-frame-pointer;-Wno-deprecated-declarations -O3 -w   -std=gnu++14 -o CMakeFiles/husky-master-objs.dir/master.cpp.o -c /usit/abel/u1/akhan/.local/opt/husky/master/master.cpp
-```
-
-The problematic part is: `-fomit-frame-pointer;-Wno-deprecated-declarations`
-
-- On the cluster when cmake is generating CXX flags, it is mistakenly putting an extra semi-colon here: `-fomit-frame-pointer;-Wno-deprecated-declarations`
-- Either fix this in original `cmake` files, or fix the setting in the `Makefile` configuration. You will have to fix multiple `flags.make` files.
-    + Replace: `-fomit-frame-pointer;-Wno-deprecated-declarations`
-    + With: ``-fomit-frame-pointer -Wno-deprecated-declarations``
-
-```bash
-cd $HUSKY_ROOT
-grep -rnw . -e 'fomit-frame-pointer'
-find $HUSKY_ROOT/release -iname 'flags.make' -type f 
-
-sed  -i  \
-    's/-fomit-frame-pointer;-Wno-deprecated-declarations/-fomit-frame-pointer\ -Wno-deprecated-declarations/g' \
-    $HUSKY_ROOT/release/master/CMakeFiles/Master.dir/flags.make
-
-
-find $HUSKY_ROOT/release -iname 'flags.make' -type f -print0 \
-    -exec \
-    sed  -i 's/-fomit-frame-pointer;-Wno-deprecated-declarations/-fomit-frame-pointer\ -Wno-deprecated-declarations/g' \
-    {} + 
-
-sed  -i  \
-    's/-fomit-frame-pointer;-Wno-deprecated-declarations/-fomit-frame-pointer\ -Wno-deprecated-declarations/g' \
-    $HUSKY_ROOT/release/master/CMakeFiles/Master.dir/link.txt
-```
-
-- You will have to search the whole folder `$HUSKY_ROOT/release`, and fix any other such occurrences when compiling examples.
-
 ### Errors linking Boost: Undefined reference to `boost::filesystem`
 
-This problem only occurred on the HPC cluster, in linking to `boost modules`.
+This problem only occurred on the HPC cluster, in linking to `boost modules`, due to multiple versions of `boost` libraries available on system.
 
 - `binutils/2.26/bin/ld`: warning: `libboost_system.so.1.69.0`, needed by `boost/1.69.0/lib/libboost_thread.so`, may conflict with `libboost_system.so.5`
 - Undefined reference to `boost::filesystem::detail::status` etc.
 
-The workaround was not to use the `boost` pre-installed on the cluster, and build the latest `boost` along with all its modules from source, using the system default `gcc` on the cluster.
+The workaround is to always specify `BOOST_ROOT` to `cmake` command. You can find the path to `boost` using:
 
+```bash
+module load boost/1.69.0
+set | grep BOOST
+BOOST_INCLUDEDIR=/cluster/software/VERSIONS/boost/1.69.0/include
+BOOST_LIBRARYDIR=/cluster/software/VERSIONS/boost/1.69.0/lib
+BOOST_ROOT=/cluster/software/VERSIONS/boost/1.69.0
+```
