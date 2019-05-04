@@ -17,6 +17,7 @@
         - [ZeroMQ](#zeromq-1)
         - [GPerfTools](#gperftools)
     - [Summary of Installation Notes for Abel](#summary-of-installation-notes-for-abel)
+- [Installation of MongoDB on Abel Cluster](#installation-of-mongodb-on-abel-cluster)
 - [Troubleshooting](#troubleshooting)
     - [`function` in namespace `std` does not name a template type](#function-in-namespace-std-does-not-name-a-template-type)
     - [`glog/logging.h` not found](#glogloggingh-not-found)
@@ -498,6 +499,13 @@ And here is the system environment:
 - gcc version: 7.2.0
 - cmake version: 3.13.1
 
+## Installation of MongoDB on Abel Cluster
+
+The TF-IDF example from Husky relies on MongoDB for loading data. Since on Abel cluster, `sudo` access isn't available, refer to the details for [installing MongoDB Community Edition using tarballs], and modify `config` file to [specify a different location] for `storage.dbPath` and `systemLog.path`.
+
+[installing MongoDB Community Edition using tarballs]: https://docs.mongodb.com/manual/tutorial/install-mongodb-on-red-hat/#using-tarballs
+[specify a different location]: https://docs.mongodb.com/manual/tutorial/install-mongodb-on-red-hat/#to-use-non-default-directories
+
 ## Troubleshooting
 
 Some of these issues have already been fixed through [pull request #304].
@@ -522,11 +530,26 @@ You might see the error that `glog/logging.h` was not found.
 
 Note that during build process, sometimes Husky may build `glog` into a nested folder. So you need to manually copy back to the correct location in `release` folder.
 
-Do not use quotes when specifying prefix path to `cmake`.
+- Do not use quotes when specifying prefix path to `cmake`.
 
 ```bash
 cmake \
     -DCMAKE_PREFIX_PATH=$HOME/.local/opt/usr/local/
+```
+
+- To copy `glog` folder into the correct location, here are the commands I ran on my Linux machine:
+
+```bash
+cd $HUSKY_ROOT/release
+cp -Rv ~/opt/home/amin/husky/release/include .
+cp -Rv ~/opt/home/amin/husky/release/lib/* ./lib/
+```
+
+- To copy `glog` folder into the correct location, here are the commands I ran on HPC cluster:
+
+```bash
+mv -v ~/.local/opt/usit/abel/u1/akhan/.local/opt/husky/release/include $HUSKY_ROOT/release/.
+mv -v ~/.local/opt/usit/abel/u1/akhan/.local/opt/husky/release/lib/* $HUSKY_ROOT/release/lib/.
 ```
 
 ### C compiler cannot create executables
