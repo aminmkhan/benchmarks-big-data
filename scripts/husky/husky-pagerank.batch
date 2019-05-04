@@ -1,0 +1,160 @@
+#!/bin/bash
+# pagerank.batch - sbatch script to run PageRank
+
+# Job name:
+#SBATCH --job-name=husky-pagerank
+#
+# Project:
+#SBATCH --account=nn9342k
+#
+# Wall clock limit:
+#SBATCH --time=00:15:00
+#
+# Total Nodes (can be overridden using sbatch --nodes=4 ...) :
+#SBATCH --nodes=2
+#
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=16
+#SBATCH --mem-per-cpu=3936M
+#
+####SBATCH --mail-type=BEGIN
+
+# Launch like this
+# sbatch --nodes=4 ~/husky/benchmarks/husky-pagerank.batch
+
+## Set up job environment:
+source /cluster/bin/jobsetup
+## Do *not* enable exit on error, otherwise kill signal to Master aborts the job
+# set -o errexit # exit on errors
+ulimit -c 0
+
+module purge   # clear any inherited modules
+module load python2/2.7.15.gnu
+module load gcc/7.2.0
+module load openmpi.gnu/2.1.0
+module list
+
+RANKS=4
+ITER=1
+INPUT=simple_graph.txt
+
+## Set up input/output files:
+chkfile output.log "*.ini" "*.log" # logs-husky
+
+# INPUT_2004=/work/users/akhan/data/pagerank/web-indochina-2004-all.compressed.mtx
+# INPUT_2002=/work/users/akhan/data/pagerank/web-uk-2002-all.compressed.mtx
+# INPUT_2005=/work/users/akhan/data/pagerank/web-uk-2005-all.compressed.mtx
+# INPUT=$INPUT_2004
+
+# Uncomment to use $SCRATCH to copy data
+# USE_SCRATCH_FOLDER="YES"
+
+# function to display commands
+exe() {
+    echo "______________________________________________________"
+    echo [$(date +"%x %r")]
+    echo "\$ $@" ; "$@" ; 
+}
+
+# if [ -z "$1" ]; then
+#     echo Usage: $0 [RANKS] [ITERATIONS] [Input Data File]
+#     echo Default: $0 $RANKS $ITER $INPUT
+#     # exit 1
+# fi
+
+if [ -n "$1" ]; then
+    RANKS=$1
+fi
+if [ -n "$2" ]; then
+    ITER=$2
+fi
+if [ -n "$3" ]; then
+    INPUT=$3
+fi
+
+# echo Processing: $0 $RANKS $ITER $INPUT
+
+## Copy input files to the work directory:
+if [ -n "$USE_SCRATCH_FOLDER" ]; then
+    echo [$(date +"%x %r")] Copying input files file to $SCRATCH ...
+
+    if [ -n "$INPUT" ]; then
+        echo [$(date +"%x %r")] Copying $INPUT file to $SCRATCH ...
+        exe cp -v $INPUT $SCRATCH/
+        INPUT="$SCRATCH/$(basename "$INPUT")"
+    fi
+
+    if [ -n "$INPUT_2002" ]; then
+        exe cp -v $INPUT_2002 $SCRATCH/
+        INPUT_2002="$SCRATCH/$(basename "$INPUT_2002")"
+    fi
+
+    if [ -n "$INPUT_2004" ]; then
+        exe cp -v $INPUT_2004 $SCRATCH/
+        INPUT_2004="$SCRATCH/$(basename "$INPUT_2004")"
+    fi
+
+    if [ -n "$INPUT_2005" ]; then
+        exe cp -v $INPUT_2005 $SCRATCH/
+        INPUT_2005="$SCRATCH/$(basename "$INPUT_2005")"
+    fi
+
+fi
+
+# Get lists of hosts
+scontrol show hostnames $SLURM_JOB_NODELIST > hosts.ini
+hostname > master.ini
+
+# Generate Husky config file
+python $HOME/husky/benchmarks/config-formatter.py
+
+# Iterations of each experiment
+ITER=1
+
+# kill Master
+kill_master() {
+    kill $(ps aux | grep 'Master --' | grep -v 'grep' | awk '{print $2}') >/dev/null 2>&1
+}
+
+# launch Master
+launch_master() {
+    $HOME/husky/release/Master --conf $CONFIG_FILE >> master.log 2>&1 &  
+}
+
+CONFIG_FILE=config.ini
+PROGRAMS=$HOME/husky/release
+
+for ((n=0;n<$ITER;n++))
+do
+
+echo "______________________________________________________"
+echo [$(date +"%x %r")]
+echo Running iteration $n from `hostname` ...
+
+# --------- Google_genGraph_20.compressed.txt --------- #
+echo -e "\n\n---------------------------\n${HOME}/downloads/data/programs/BenchPageRank --conf ${CONFIG_FILE} --input nfs:///work/users/akhan/data/pagerank/Google_genGraph_20.compressed.txt --iter 5  >> output.log 2>&1 \n" >> output.log
+
+launch_master
+srun sleep 0.01
+
+# Do *not* run in background with &
+srun $PROGRAMS/BenchPageRank  --conf $CONFIG_FILE --input nfs:///work/users/akhan/data/pagerank/Google_genGraph_20.compressed.txt --iter 30 >> google-pr-31-threads-30-iter-root.log  2>&1
+
+srun sleep 0.01
+kill_master
+
+# --------- web-indochina-2004-all.compressed.mtx --------- #
+echo -e "\n\n---------------------------\n${HOME}/downloads/data/programs/BenchPageRank --conf ${CONFIG_FILE} --input nfs:///work/users/akhan/data/pagerank/web-indochina-2004-all.compressed.mtx --iter 5  >> output.log 2>&1 \n" >> output.log
+
+launch_master
+srun sleep 0.01
+
+srun $PROGRAMS/BenchPageRank  --conf $CONFIG_FILE --input nfs:///work/users/akhan/data/pagerank/web-indochina-2004-all.compressed.mtx --iter 30  >> web-indochina-pr-31-thread-30-iter-root.log  2>&1
+
+srun sleep 0.01
+kill_master
+
+done
+
+## Set up input/output files:
+chkfile output.log "*.ini" "*.log" # logs-husky
